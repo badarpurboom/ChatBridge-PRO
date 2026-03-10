@@ -1,0 +1,22 @@
+{
+  "name": "simplewa-crm-wa-service",
+  "version": "1.0.0",
+  "description": "WhatsApp microservice for SimpleWA CRM",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
+    "axios": "^1.13.6",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}

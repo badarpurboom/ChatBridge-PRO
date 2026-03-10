@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+.Python
+venv/
+env/
+*.egg-info/
+
+# Django
+*.sqlite3
+*.sqlite3-journal
+db.sqlite3
+/staticfiles/
+/media/
+
+# Environment
+.env
+*.env
+
+# Node.js
+node_modules/
+npm-debug.log*
+
+# WhatsApp session (contains auth tokens — never commit!)
+.wwebjs_auth/
+.wwebjs_cache/
+
+# Build output
+/dist/
+/build/
+/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Coverage
+.coverage
+htmlcov/
