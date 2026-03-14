@@ -433,6 +433,8 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [bulkAgent, setBulkAgent] = useState("");
   const [showAutoModal, setShowAutoModal] = useState(false);
+  const [autoAgents, setAutoAgents] = useState([]);
+  const [autoRoundIdx, setAutoRoundIdx] = useState(0);
   const [toast, setToast] = useState(null);
 
   // Pagination states
@@ -509,7 +511,7 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
 
   const downloadCSV = () => {
     const cols = ["Name", "Phone", "Email", "Stage", "Agent", "Amount", "Source", "Address", "Date", "Notes", "Tags"];
-    const rows = filtered.map(l => {
+    const rows = displayLeads.map(l => {
       const stage = stages.find(s => s.id === l.stage);
       return [l.name, l.phone, l.email || "", stage?.name || "", l.assigned_to_name || "",
       l.amount || "", l.source || "", l.address || "", l.created_at || "",
@@ -522,7 +524,7 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
     const a = document.createElement("a"); a.href = url;
     a.download = `leads_${new Date().toISOString().slice(0, 10)}.csv`; a.click();
     URL.revokeObjectURL(url);
-    showToast(`${filtered.length} leads downloaded!`);
+    showToast(`${displayLeads.length} leads downloaded!`);
   };
 
   const applyBulkAssign = async () => {
