@@ -42,26 +42,7 @@ def _send_via_webjs(phone: str, text: str) -> bool:
         return False
 
 
-def _send_via_meta_api(phone: str, text: str) -> bool:
-    """Send via Meta Cloud API service"""
-    meta_wa_url = getattr(settings, 'META_WA_SERVICE_URL', 'http://localhost:3001')
-    secret = getattr(settings, 'INTERNAL_WEBHOOK_SECRET', '')
-
-    try:
-        resp = requests.post(
-            f"{meta_wa_url}/send",
-            json={'phone': phone, 'message': text},
-            headers={'X-Internal-Secret': secret},
-            timeout=15
-        )
-        resp.raise_for_status()
-        logger.info(f"Meta API message sent to {phone}")
-        return True
-    except requests.RequestException as e:
-        logger.error(f"Meta API service send failed: {e}")
-        return False
-
-
+# Send via Meta API directly
 def _send_via_meta_api(phone: str, text: str) -> bool:
     """Send via Meta Cloud API (official)"""
     access_token = Setting.get('meta_access_token')
