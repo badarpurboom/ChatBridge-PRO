@@ -143,3 +143,32 @@ class SettingViewSet(viewsets.ViewSet):
             defaults={'value': value, 'is_secret': is_secret}
         )
         return Response(SettingSerializer(obj).data)
+
+    def destroy(self, request, pk=None):
+        if request.user.role != 'admin':
+            return Response({'error': 'Admin only'}, status=403)
+        try:
+            # Look up by key instead of ID for frontend convenience
+            obj = Setting.objects.get(key=pk)
+            obj.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Setting.DoesNotExist:
+            return Response({'error': 'Setting not found'}, status=404)
+
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        if request.user.role != 'admin':
+            return Response({'error': 'Admin only'}, status=403)
+        settings_data = request.data.get('settings', [])
+        results = []
+        for item in settings_data:
+            key = item.get('key')
+            value = item.get('value')
+            if value is None: continue 
+            is_secret = item.get('is_secret', False)
+            obj, _ = Setting.objects.update_or_create(
+                key=key,
+                defaults={'value': value, 'is_secret': is_secret}
+            )
+            results.append(SettingSerializer(obj).data)
+        return Response(results)

@@ -1376,7 +1376,7 @@ const CatalogPage = ({ catalog, setCatalog, currentUser }) => {
 };
 
 // ─── SETTINGS PAGE ───
-const SettingsPage = ({ stages, setStages, leadFields, setLeadFields, currentUser, openAIKey, setOpenAIKey, systemPrompt, setSystemPrompt, users, setUsers, bizInfo, setBizInfo, waStatus, fetchStatus, qr, onDisconnect, onReset }) => {
+const SettingsPage = ({ stages, setStages, leadFields, setLeadFields, currentUser, openAIKey, setOpenAIKey, systemPrompt, setSystemPrompt, users, setUsers, bizInfo, setBizInfo, waStatus, fetchStatus, qr, onDisconnect, onReset, waMode, setWaMode, metaPhoneId, setMetaPhoneId, metaToken, setMetaToken, metaAppId, setMetaAppId }) => {
   const [tab, setTab] = useState("pipeline");
   const [showAddStage, setShowAddStage] = useState(false);
   const [showAddField, setShowAddField] = useState(false);
@@ -1625,7 +1625,7 @@ const SettingsPage = ({ stages, setStages, leadFields, setLeadFields, currentUse
         </div>
       )}
 
-      {tab === "whatsapp" && <WhatsAppSettings openAIKey={openAIKey} setOpenAIKey={setOpenAIKey} systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt} waStatus={waStatus} fetchStatus={fetchStatus} qr={qr} onDisconnect={onDisconnect} onReset={onReset} />}
+      {tab === "whatsapp" && <WhatsAppSettings openAIKey={openAIKey} setOpenAIKey={setOpenAIKey} systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt} waStatus={waStatus} fetchStatus={fetchStatus} qr={qr} onDisconnect={onDisconnect} onReset={onReset} waMode={waMode} setWaMode={setWaMode} metaPhoneId={metaPhoneId} setMetaPhoneId={setMetaPhoneId} metaToken={metaToken} setMetaToken={setMetaToken} metaAppId={metaAppId} setMetaAppId={setMetaAppId} />}
 
       {/* Modals */}
       {showAddStage && (
@@ -1685,14 +1685,57 @@ const saveAISetting = async (key, value) => {
   }
 };
 
-const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemPrompt, waStatus, fetchStatus, qr, onDisconnect, onReset }) => {
-  const status = waStatus; // Use 'status' to match existing code usages
+const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemPrompt, waStatus, fetchStatus, qr, onDisconnect, onReset, waMode, setWaMode, metaPhoneId, setMetaPhoneId, metaToken, setMetaToken, metaAppId, setMetaAppId }) => {
+  const status = waStatus; 
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState("WhatsApp Web (Free)");
+  const WA_URL = `http://${window.location.hostname}:3001`;
   const [pairingPhone, setPairingPhone] = useState("");
   const [pairingCode, setPairingCode] = useState(null);
   const [pairCodeInput, setPairCodeInput] = useState("");
-  const WA_URL = `http://${window.location.hostname}:3000`;
+
+  const handleModeChange = (m) => {
+    const newMode = m === "Meta Cloud API (Official)" ? "api" : "webjs";
+    setWaMode(newMode);
+  };
+
+  const handleSaveSettings = async () => {
+    setLoading(true);
+    try {
+      await apiFetch("/settings/bulk_update/", {
+        method: "POST",
+        body: JSON.stringify({
+          settings: [
+            { key: "wa_mode", value: waMode },
+            { key: "meta_phone_id", value: metaPhoneId },
+            { key: "meta_access_token", value: metaToken },
+            { key: "meta_app_id", value: metaAppId },
+          ]
+        })
+      });
+      showToast("WhatsApp settings saved!");
+    } catch (e) {
+      console.error("Save failed", e);
+      alert("Save failed");
+    }
+    setLoading(false);
+  };
+
+  const handleResetMeta = async () => {
+    if (!confirm("Meta credentials clear karein?")) return;
+    setLoading(true);
+    try {
+      await Promise.all([
+        apiFetch("/settings/meta_phone_id/", { method: "DELETE" }),
+        apiFetch("/settings/meta_access_token/", { method: "DELETE" }),
+        apiFetch("/settings/meta_app_id/", { method: "DELETE" }),
+      ]);
+      setMetaPhoneId("");
+      setMetaToken("");
+      setMetaAppId("");
+      showToast("Meta credentials cleared", "#ef4444");
+    } catch (e) { console.error(e); }
+    setLoading(false);
+  };
 
   const handleRequestCode = async () => {
     if (!pairingPhone) return alert("Pehle phone number daalo!");
@@ -1719,8 +1762,11 @@ const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemProm
     setLoading(false);
   };
 
+  const currentModeLabel = waMode === "api" ? "Meta Cloud API (Official)" : "WhatsApp Web (Free)";
+
   return (
     <div style={{ display: "grid", gap: 16, maxWidth: 600 }}>
+      {/* Toast Helper (inside component for scoped alerts) */}
       <Card style={{ padding: 20 }}>
         <h3 style={{ fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
           <Icon d={icons.whatsapp} size={18} color="#25d366" fill="#25d366" strokeWidth={0} /> WhatsApp Connection
@@ -1731,11 +1777,11 @@ const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemProm
           <div style={{ display: "flex", gap: 10 }}>
             {["WhatsApp Web (Free)", "Meta Cloud API (Official)"].map(m => (
               <div key={m}
-                onClick={() => setMode(m)}
+                onClick={() => handleModeChange(m)}
                 style={{
                   flex: 1, padding: "10px 14px", borderRadius: 8,
-                  border: `1px solid ${mode === m ? "#25d366" : "var(--border)"}`,
-                  background: mode === m ? "#25d36611" : "transparent",
+                  border: `1px solid ${currentModeLabel === m ? "#25d366" : "var(--border)"}`,
+                  background: currentModeLabel === m ? "#25d36611" : "transparent",
                   cursor: "pointer", textAlign: "center", fontSize: 12, transition: "all 0.2s"
                 }}>
                 {m}
@@ -1744,7 +1790,7 @@ const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemProm
           </div>
         </div>
 
-        {mode === "WhatsApp Web (Free)" ? (
+        {waMode === "webjs" ? (
           <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 16, padding: 24, textAlign: "center", border: "1px solid var(--border)", marginBottom: 16, backdropFilter: "blur(10px)" }}>
             {status.connected ? (
               <div style={{ animation: "fadeIn 0.5s ease-out" }}>
@@ -1821,24 +1867,15 @@ const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemProm
           <div style={{ display: "grid", gap: 16, marginBottom: 20, animation: "fadeIn 0.5s ease-out" }}>
             <div style={{ background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: 12, padding: 16, marginBottom: 10 }}>
               <p style={{ fontSize: 12, color: "#3b82f6", fontWeight: 600 }}>Official Meta API Mode</p>
-              <p style={{ fontSize: 11, color: "var(--text3)" }}>Use this for high-volume business messaging.</p>
+              <p style={{ fontSize: 11, color: "var(--text3)" }}>High-volume business messaging ke liye iska use karein.</p>
             </div>
-            <Input label="App ID" placeholder="Meta App ID" />
-            <Input label="Phone Number ID" placeholder="Phone Number ID" />
-            <Input label="Access Token" type="password" placeholder="EAAB..." />
+            <Input label="App ID" placeholder="Meta App ID" value={metaAppId} onChange={setMetaAppId} />
+            <Input label="Phone Number ID" placeholder="Phone Number ID" value={metaPhoneId} onChange={setMetaPhoneId} />
+            <Input label="Access Token" type="password" placeholder="EAAB..." value={metaToken} onChange={setMetaToken} />
 
-            <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16, marginTop: 4 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 10 }}>🔢 Phone Verification Code</label>
-              <div style={{ display: "flex", gap: 10 }}>
-                <input
-                  placeholder="Enter 6-digit code from phone"
-                  value={pairCodeInput}
-                  onChange={e => setPairCodeInput(e.target.value)}
-                  style={{ flex: 1, background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", padding: "10px 14px", fontSize: 13 }}
-                />
-                <Btn onClick={() => showToast("Verification successful!", "#25d366")}>Verify</Btn>
-              </div>
-              <p style={{ fontSize: 11, color: "var(--text3)", marginTop: 8 }}>Phone par aaya hua OTP yahan daalein.</p>
+            <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+              <Btn onClick={handleSaveSettings} disabled={loading} icon="check">Save Meta Settings</Btn>
+              <Btn variant="danger" onClick={handleResetMeta} disabled={loading} icon="trash">Clear Credentials</Btn>
             </div>
           </div>
         )}
@@ -1898,6 +1935,11 @@ export default function App() {
     { id: "admin", name: "Admin", role: "admin", password: "admin123" }
   ]));
   const [bizInfo, setBizInfo] = useState(() => getSaved("crm_biz_info", { name: "My CRM Business", owner: "Admin", phone: "", address: "" }));
+  
+  const [waMode, setWaMode] = useState("webjs");
+  const [metaPhoneId, setMetaPhoneId] = useState("");
+  const [metaToken, setMetaToken] = useState("");
+  const [metaAppId, setMetaAppId] = useState("");
 
   // ── currentUser state (moved up before useEffects that reference it) ──
   const [currentUser, setCurrentUser] = useState(() => {
@@ -1914,6 +1956,9 @@ export default function App() {
   const [waStatusGlobal, setWaStatusGlobal] = useState({ status: 'loading', connected: false });
   const [waQRGlobal, setWaQRGlobal] = useState(null);
   const WA_URL = `http://${window.location.hostname}:3001`;
+  const [pairingPhone, setPairingPhone] = useState("");
+  const [pairingCode, setPairingCode] = useState(null);
+  const [pairCodeInput, setPairCodeInput] = useState("");
 
   const fetchWAStatus = async () => {
     try {
@@ -2000,10 +2045,12 @@ export default function App() {
 
         if (settingsRes.ok) {
           const s = await settingsRes.json();
-          const key = s.find(x => x.key === "openai_api_key")?.value || "";
-          const prompt = s.find(x => x.key === "ai_system_prompt")?.value || "";
-          setOpenAIKey(key);
-          setSystemPrompt(prompt);
+          setOpenAIKey(s.find(x => x.key === "openai_api_key")?.value || "");
+          setSystemPrompt(s.find(x => x.key === "ai_system_prompt")?.value || "");
+          setWaMode(s.find(x => x.key === "wa_mode")?.value || "webjs");
+          setMetaPhoneId(s.find(x => x.key === "meta_phone_id")?.value || "");
+          setMetaToken(s.find(x => x.key === "meta_access_token")?.value || "");
+          setMetaAppId(s.find(x => x.key === "meta_app_id")?.value || "");
         }
         if (agentsRes && agentsRes.ok) {
           const fetchedAgents = await agentsRes.json();
@@ -2155,7 +2202,7 @@ export default function App() {
       // Fix 1: Pass aiEnabledMap to ChatPage so AI toggle persists per lead
       case "chat": return <ChatPage leads={leads} stages={stages} messages={messages} setMessages={setMessages} currentUser={currentUser} aiEnabledMap={aiEnabledMap} setAiEnabledMap={setAiEnabledMap} />;
       case "catalog": return <CatalogPage catalog={catalog} setCatalog={setCatalog} currentUser={currentUser} />;
-      case "settings": return <SettingsPage stages={stages} setStages={setStages} leadFields={leadFields} setLeadFields={setLeadFields} currentUser={currentUser} openAIKey={openAIKey} setOpenAIKey={setOpenAIKey} systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt} users={users} setUsers={setUsers} bizInfo={bizInfo} setBizInfo={setBizInfo} waStatus={waStatusGlobal} fetchStatus={fetchWAStatus} qr={waQRGlobal} onDisconnect={handleWADisconnect} onReset={handleWAReset} />;
+      case "settings": return <SettingsPage stages={stages} setStages={setStages} leadFields={leadFields} setLeadFields={setLeadFields} currentUser={currentUser} openAIKey={openAIKey} setOpenAIKey={setOpenAIKey} systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt} users={users} setUsers={setUsers} bizInfo={bizInfo} setBizInfo={setBizInfo} waStatus={waStatusGlobal} fetchStatus={fetchWAStatus} qr={waQRGlobal} onDisconnect={handleWADisconnect} onReset={handleWAReset} waMode={waMode} setWaMode={setWaMode} metaPhoneId={metaPhoneId} setMetaPhoneId={setMetaPhoneId} metaToken={metaToken} setMetaToken={setMetaToken} metaAppId={metaAppId} setMetaAppId={setMetaAppId} />;
       default: return null;
     }
   };
