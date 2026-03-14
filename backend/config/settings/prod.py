@@ -1,6 +1,6 @@
 from .base import *
 
-DEBUG = False
+DEBUG = config('DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='*').split(',')
 
 # PostgreSQL for production
@@ -23,12 +23,20 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+# Disable SSL Redirect by default unless specified
 SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=False, cast=bool)
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=False, cast=bool)
 
-# CSRF Trusted Origins (Required for login on some environments)
-CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost,http://127.0.0.1').split(',')
+# CSRF Trusted Origins - Allow both IP and localhost
+CSRF_TRUSTED_ORIGINS = config('CSRF_TRUSTED_ORIGINS', default='http://localhost,http://127.0.0.1,http://187.124.97.207').split(',')
 
-# CORS — only allow your domain
-CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default='http://localhost:3000').split(',')
+# CORS
+CORS_ALLOW_ALL_ORIGINS = True # Temporary allow all to fix login issues, then tighten
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken']
+CORS_ALLOW_CREDENTIALS = True
+
+# Internal webhook
+WA_SERVICE_URL = config('WA_SERVICE_URL', default='http://localhost:3005') 
+# Note: Baileys service port is 3005 on VPS
