@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'drf_spectacular',
+    'import_export',
     # Our apps
     'apps.accounts',
     'apps.leads',

@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 def send_whatsapp_message(phone: str, text: str) -> bool:
     """
     Send WhatsApp message.
-    Mode is determined by 'wa_mode' setting: 'webjs' or 'api'
+    Mode is determined by 'wa_mode' setting: 'webjs' (Baileys) or 'api' (Official Meta)
     """
     mode = Setting.get('wa_mode', 'webjs')
 
@@ -23,7 +23,7 @@ def send_whatsapp_message(phone: str, text: str) -> bool:
 
 
 def _send_via_webjs(phone: str, text: str) -> bool:
-    """Send via Node.js whatsapp-web.js microservice"""
+    """Send via Node.js Baileys microservice"""
     wa_url = getattr(settings, 'WA_SERVICE_URL', 'http://localhost:3000')
     secret = getattr(settings, 'INTERNAL_WEBHOOK_SECRET', '')
 
@@ -35,10 +35,30 @@ def _send_via_webjs(phone: str, text: str) -> bool:
             timeout=10
         )
         resp.raise_for_status()
-        logger.info(f"WA Web.js message sent to {phone}")
+        logger.info(f"Baileys message sent to {phone}")
         return True
     except requests.RequestException as e:
-        logger.error(f"WA Web.js send failed: {e}")
+        logger.error(f"Baileys send failed: {e}")
+        return False
+
+
+def _send_via_meta_api(phone: str, text: str) -> bool:
+    """Send via Meta Cloud API service"""
+    meta_wa_url = getattr(settings, 'META_WA_SERVICE_URL', 'http://localhost:3001')
+    secret = getattr(settings, 'INTERNAL_WEBHOOK_SECRET', '')
+
+    try:
+        resp = requests.post(
+            f"{meta_wa_url}/send",
+            json={'phone': phone, 'message': text},
+            headers={'X-Internal-Secret': secret},
+            timeout=15
+        )
+        resp.raise_for_status()
+        logger.info(f"Meta API message sent to {phone}")
+        return True
+    except requests.RequestException as e:
+        logger.error(f"Meta API service send failed: {e}")
         return False
 
 

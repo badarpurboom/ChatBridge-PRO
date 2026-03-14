@@ -418,7 +418,7 @@ const DashboardPage = ({ leads, stages, catalog, currentUser }) => {
 };
 
 // ─── LEADS PAGE ───
-const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentUser, autoRound, setAutoRound, autoRoundIdx, setAutoRoundIdx, autoAgents, setAutoAgents, agents, users }) => {
+const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentUser, agents, users, refreshToken }) => {
   const [search, setSearch] = useState("");
   const [filterStage, setFilterStage] = useState("");
   const [filterAgent, setFilterAgent] = useState("");
@@ -486,6 +486,11 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
     }, 500);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // Fix 3+4: Re-fetch when refreshToken changes (triggered by WebSocket or any action)
+  useEffect(() => {
+    if (refreshToken) fetchLeads();
+  }, [refreshToken]);
 
   const showToast = (msg, color = "#25d366") => {
     setToast({ msg, color });
@@ -572,8 +577,22 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
     setShowAutoModal(false);
   };
 
-  const toggleSelect = (id) => setSelected(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
-  const toggleAll = () => setSelected(selected.length === filtered.length ? [] : filtered.map(l => l.id));
+  const toggleSelect = (id) => {
+    const sid = String(id);
+    setSelected(p => p.includes(sid) ? p.filter(x => x !== sid) : [...p, sid]);
+  };
+  // Fix 2: Proper select-all using normalized string IDs + correct all-selected check
+  const currentPageIds = displayLeads.map(l => String(l.id));
+  const allPageSelected = currentPageIds.length > 0 && currentPageIds.every(id => selected.includes(id));
+  const toggleAll = () => {
+    if (allPageSelected) {
+      // Deselect only current page leads (keep others if any)
+      setSelected(p => p.filter(id => !currentPageIds.includes(id)));
+    } else {
+      // Select all on current page (merge with existing)
+      setSelected(p => [...new Set([...p, ...currentPageIds])]);
+    }
+  };
 
   const openAdd = () => { setForm({ stage: stages[0]?.id, assigned_to_name: "" }); setEditLead(null); setShowAdd(true); };
   const openEdit = (l) => { setForm({ ...l }); setEditLead(l.id); setShowAdd(true); };
@@ -655,15 +674,6 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
           <p style={{ color: "var(--text2)", fontSize: 13 }}>{filteredCount} leads found</p>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {!isAgent && (
-            <div style={{ display: "flex", alignItems: "center", gap: 7, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: "6px 12px" }}>
-              <div onClick={() => setAutoRound(!autoRound)} style={{ width: 32, height: 18, borderRadius: 9, background: autoRound ? "#25d366" : "var(--border)", cursor: "pointer", position: "relative", transition: "background 0.2s" }}>
-                <div style={{ width: 14, height: 14, borderRadius: 7, background: "#fff", position: "absolute", top: 2, left: autoRound ? 16 : 2, transition: "left 0.2s" }} />
-              </div>
-              <span style={{ fontSize: 11, color: "var(--text2)", whiteSpace: "nowrap" }}>Auto Assign</span>
-              <button onClick={() => setShowAutoModal(true)} style={{ background: "none", border: "none", color: "#3b82f6", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>⚙</button>
-            </div>
-          )}
           <Btn variant="secondary" size="sm" onClick={() => setShowFilters(!showFilters)} icon="pipeline">
             Filters {activeFilters > 0 && <span style={{ background: "#ef4444", color: "#fff", borderRadius: 10, padding: "1px 6px", fontSize: 10, marginLeft: 2 }}>{activeFilters}</span>}
           </Btn>
@@ -729,7 +739,10 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
 
       {/* Select All row */}
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, padding: "0 4px" }}>
-        <input type="checkbox" checked={selected.length === displayLeads.length && displayLeads.length > 0} onChange={toggleAll} style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#25d366" }} />
+        <input type="checkbox"
+          checked={allPageSelected}
+          onChange={toggleAll}
+          style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#25d366" }} />
         <span style={{ fontSize: 12, color: "var(--text3)" }}>Select All on this page ({displayLeads.length})</span>
         <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text3)" }}>Total: {totalCount} leads</span>
       </div>
@@ -738,7 +751,7 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
       <div style={{ display: "grid", gap: 8, opacity: loading ? 0.6 : 1, transition: "opacity 0.2s" }}>
         {displayLeads.map(l => {
           const stage = stages.find(s => s.id === l.stage);
-          const isSelected = selected.includes(l.id);
+          const isSelected = selected.includes(String(l.id));
           return (
             <Card key={l.id} style={{ padding: "12px 16px", border: isSelected ? "1px solid #3b82f655" : "1px solid var(--border)", background: isSelected ? "#3b82f608" : "var(--card)", transition: "all 0.15s" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -912,7 +925,7 @@ const LeadsPage = ({ leads, setLeads, stages, leadFields, catalog = [], currentU
             {!isAgent && (
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--text2)", textTransform: "uppercase", letterSpacing: "0.05em", display: "block", marginBottom: 6 }}>
-                  Assign To Agent {autoRound && !editLead && <span style={{ color: "#25d366", fontWeight: 400, fontSize: 11 }}>(Auto: {agents[autoRoundIdx % agents.length]})</span>}
+                  Assign To Agent
                 </label>
                 <select value={form.assigned_to_name || ""} onChange={e => setForm(p => ({ ...p, assigned_to_name: e.target.value }))} style={{ width: "100%", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 8, color: "var(--text)", padding: "9px 12px", fontSize: 13 }}>
                   <option value="">-- Select Agent --</option>
@@ -1068,13 +1081,16 @@ const PipelinePage = ({ leads, stages, currentUser }) => {
 };
 
 // ─── CHAT PAGE ───
-const ChatPage = ({ leads, stages, messages, setMessages, currentUser }) => {
+// Fix 1: aiEnabled is now a map per lead (aiEnabledMap), passed from App so it persists across lead selection
+const ChatPage = ({ leads, stages, messages, setMessages, currentUser, aiEnabledMap, setAiEnabledMap }) => {
   const [selected, setSelected] = useState(null);
   const [view, setView] = useState("list"); // 'list' or 'chat' for mobile
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const [input, setInput] = useState("");
-  const [aiEnabled, setAiEnabled] = useState(true);
   const messagesEnd = useRef(null);
+  // Fix 1: Get AI enabled state for currently selected lead (default true)
+  const aiEnabled = selected != null ? (aiEnabledMap[selected] ?? true) : true;
+  const setAiEnabled = (val) => setAiEnabledMap(prev => ({ ...prev, [selected]: val }));
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -1862,6 +1878,8 @@ const WhatsAppSettings = ({ openAIKey, setOpenAIKey, systemPrompt, setSystemProm
 // ─── MAIN APP ───
 export default function App() {
   console.log("DEBUG: App component starting...");
+  // Fix 1: AI toggle state per lead (persists when switching leads)
+  const [aiEnabledMap, setAiEnabledMap] = useState({});
   const [page, setPage] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -1876,9 +1894,6 @@ export default function App() {
   const [messages, setMessages] = useState(() => getSaved("crm_messages", sampleMessages));
   const [openAIKey, setOpenAIKey] = useState(() => getSaved("crm_openai_key", ""));
   const [systemPrompt, setSystemPrompt] = useState(() => getSaved("crm_system_prompt", "Tum ek helpful business assistant ho. Hinglish mein baat karo. Short aur helpful replies do."));
-  const [autoRound, setAutoRound] = useState(() => getSaved("crm_autoround", false));
-  const [autoRoundIdx, setAutoRoundIdx] = useState(() => getSaved("crm_autoround_idx", 0));
-  const [autoAgents, setAutoAgents] = useState(() => getSaved("crm_auto_agents", []));
   const [users, setUsers] = useState(() => getSaved("crm_users", [
     { id: "admin", name: "Admin", role: "admin", password: "admin123" }
   ]));
@@ -1898,7 +1913,7 @@ export default function App() {
   // ── Global WhatsApp Status (Moved from Settings for global display) ──
   const [waStatusGlobal, setWaStatusGlobal] = useState({ status: 'loading', connected: false });
   const [waQRGlobal, setWaQRGlobal] = useState(null);
-  const WA_URL = `http://${window.location.hostname}:3000`;
+  const WA_URL = `http://${window.location.hostname}:3001`;
 
   const fetchWAStatus = async () => {
     try {
@@ -2014,34 +2029,59 @@ export default function App() {
     };
 
     fetchData();
-    const inv = setInterval(fetchData, 30000); // Poll every 30s as fallback
+    const inv = setInterval(fetchData, 10000); // Fix 5: Poll every 10s for near-real-time dashboard updates
     return () => clearInterval(inv);
   }, [currentUser]);
+
+  // Fix 3+4+5: refreshToken triggers LeadsPage to re-fetch its paginated data
+  const [refreshToken, setRefreshToken] = useState(null);
+
+  const triggerRefresh = () => {
+    // Refresh global leads state (for Dashboard + Pipeline)
+    apiFetch("/leads/?no_page=1").then(res => res.json()).then(data => {
+      const arr = Array.isArray(data) ? data : (data.results || []);
+      setLeads(arr);
+    }).catch(() => {});
+    // Signal LeadsPage to re-fetch its paginated view
+    setRefreshToken(Date.now());
+  };
 
   // ── WebSocket Effects ──
   useEffect(() => {
     if (!currentUser?.access) return;
 
-    const wsUrl = `ws://localhost:8000/ws/dashboard/?token=${currentUser.access}`;
-    const ws = new WebSocket(wsUrl);
+    const wsUrl = `ws://${window.location.hostname}:8000/ws/dashboard/?token=${currentUser.access}`;
+    let ws;
+    let reconnectTimer;
 
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === "lead_update") {
-        const payload = data.data;
-        if (payload.type === "new_message") {
-          // If it's a new message for an existing lead, we might need to refresh that lead or just fetch all
-          // For simplicity and reliability in this version, we refresh the list
-          apiFetch("/leads/").then(res => res.json()).then(data => {
-            const arr = Array.isArray(data) ? data : (data.results || []);
-            setLeads(arr);
-          });
+    const connect = () => {
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          // Fix 3+4: Handle all lead_update events (assignment, stage change, new messages, etc.)
+          if (data.type === "lead_update" || data.type === "stage_change" ||
+              data.type === "assignment" || data.type === "new_lead") {
+            triggerRefresh();
+          }
+        } catch (err) {
+          console.error("WS parse error:", err);
         }
-      }
+      };
+
+      ws.onerror = (e) => console.error("WS Error:", e);
+      ws.onclose = () => {
+        // Auto-reconnect after 5s if connection drops
+        reconnectTimer = setTimeout(connect, 5000);
+      };
     };
 
-    ws.onerror = (e) => console.error("WS Error:", e);
-    return () => ws.close();
+    connect();
+    return () => {
+      clearTimeout(reconnectTimer);
+      if (ws) ws.close();
+    };
   }, [currentUser]);
 
 
@@ -2110,9 +2150,10 @@ export default function App() {
   const renderPage = () => {
     switch (page) {
       case "dashboard": return <DashboardPage leads={leads} stages={stages} catalog={catalog} currentUser={currentUser} />;
-      case "leads": return <LeadsPage leads={leads} setLeads={setLeads} stages={stages} leadFields={leadFields} catalog={catalog} currentUser={currentUser} autoRound={autoRound} setAutoRound={setAutoRound} autoRoundIdx={autoRoundIdx} setAutoRoundIdx={setAutoRoundIdx} autoAgents={autoAgents} setAutoAgents={setAutoAgents} agents={AGENTS} users={users} />;
+      case "leads": return <LeadsPage leads={leads} setLeads={setLeads} stages={stages} leadFields={leadFields} catalog={catalog} currentUser={currentUser} agents={users.filter(u => u.role === 'agent')} users={users} refreshToken={refreshToken} />;
       case "pipeline": return <PipelinePage leads={leads} setLeads={setLeads} stages={stages} currentUser={currentUser} />;
-      case "chat": return <ChatPage leads={leads} stages={stages} messages={messages} setMessages={setMessages} currentUser={currentUser} />;
+      // Fix 1: Pass aiEnabledMap to ChatPage so AI toggle persists per lead
+      case "chat": return <ChatPage leads={leads} stages={stages} messages={messages} setMessages={setMessages} currentUser={currentUser} aiEnabledMap={aiEnabledMap} setAiEnabledMap={setAiEnabledMap} />;
       case "catalog": return <CatalogPage catalog={catalog} setCatalog={setCatalog} currentUser={currentUser} />;
       case "settings": return <SettingsPage stages={stages} setStages={setStages} leadFields={leadFields} setLeadFields={setLeadFields} currentUser={currentUser} openAIKey={openAIKey} setOpenAIKey={setOpenAIKey} systemPrompt={systemPrompt} setSystemPrompt={setSystemPrompt} users={users} setUsers={setUsers} bizInfo={bizInfo} setBizInfo={setBizInfo} waStatus={waStatusGlobal} fetchStatus={fetchWAStatus} qr={waQRGlobal} onDisconnect={handleWADisconnect} onReset={handleWAReset} />;
       default: return null;

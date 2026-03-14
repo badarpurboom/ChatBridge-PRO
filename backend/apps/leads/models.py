@@ -56,6 +56,32 @@ class Lead(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        # Auto-assign logic for new leads only
+        if is_new and not self.assigned_to:
+            try:
+                setting = AutoAssignSetting.objects.first()
+                if setting and setting.enabled:
+                    agents = list(setting.agents.filter(is_active=True))
+                    if agents:
+                        # Round-robin selection
+                        idx = setting.last_index % len(agents)
+                        selected_agent = agents[idx]
+                        
+                        # Assign and save without re-triggering this logic
+                        self.assigned_to = selected_agent
+                        super().save(update_fields=['assigned_to'])
+                        
+                        # Update index for next time
+                        setting.last_index = (idx + 1) % len(agents)
+                        setting.save(update_fields=['last_index'])
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).error(f"Auto-assign failed for lead {self.id}: {e}")
+
     class Meta:
         ordering = ['-created_at']
         db_table = 'crm_lead'
@@ -108,3 +134,25 @@ class Setting(models.Model):
             return cls.objects.get(key=key).value
         except cls.DoesNotExist:
             return default
+
+class AutoAssignSetting(models.Model):
+    """Singleton model for controlling round-robin auto assignment of leads"""
+    enabled = models.BooleanField(default=False, help_text="Turn ON to automatically assign new leads to selected agents.")
+    agents = models.ManyToManyField(settings.AUTH_USER_MODEL, limit_choices_to={'role': 'agent'}, blank=True, help_text="Select agents for round-robin assignment.")
+    last_index = models.PositiveIntegerField(default=0, help_text="Used internally to track round-robin order.")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Auto Assign Setting"
+        verbose_name_plural = "Auto Assign Settings"
+        db_table = 'crm_autoassign_setting'
+
+    def __str__(self):
+        status = "ON" if self.enabled else "OFF"
+        return f"Auto Assign is {status} (Agents: {self.agents.count()})"
+
+    def save(self, *args, **kwargs):
+        # Ensure only one instance exists
+        if not self.pk and AutoAssignSetting.objects.exists():
+            return
+        super().save(*args, **kwargs)

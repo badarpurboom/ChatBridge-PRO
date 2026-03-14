@@ -105,7 +105,7 @@ def meta_webhook(request):
                         phone = msg.get('from', '').replace('+', '')
                         text = msg['text']['body']
                         wa_id = msg.get('id', '')
-                        process_incoming_message.delay(phone, text, wa_id)
+                        process_incoming_message_sync(phone, text, wa_id)
     except Exception as e:
         logger.error(f"Meta webhook error: {e}")
 

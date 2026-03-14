@@ -26,6 +26,10 @@ npm-debug.log*
 # WhatsApp session (contains auth tokens — never commit!)
 .wwebjs_auth/
 .wwebjs_cache/
+.baileys_auth/
+baileys_auth/
+auth_info.json
+session.json
 
 # Build output
 /dist/
